@@ -29,17 +29,17 @@ class CelebADataset:
 
         self.device = device
 
-        if os.path.isdir('/home/scratch/luiraf/work/data/celeba/'):
-            data_root = '/home/scratch/luiraf/work/data/celeba/'
+        if os.path.isdir(r"C:\Users\ngtit\Desktop\CelebA"):
+            data_root = r"C:\Users\ngtit\Desktop\CelebA"
         else:
             raise FileNotFoundError('Can\'t find celebrity faces.')
 
         self.code_root = os.path.dirname(os.path.realpath(__file__))
-        self.imgs_root = os.path.join(data_root, 'Img/img_align_celeba/')
-        self.imgs_root_preprocessed = os.path.join(data_root, 'Img/img_align_celeba_preprocessed/')
+        self.imgs_root = os.path.join(data_root, 'Img\img_align_celeba')
+        self.imgs_root_preprocessed = os.path.join(data_root, 'Img\img_align_celeba_preprocessed')
         if not os.path.isdir(self.imgs_root_preprocessed):
             os.mkdir(self.imgs_root_preprocessed)
-        self.data_split_file = os.path.join(data_root, 'Eval/list_eval_partition.txt')
+        self.data_split_file = os.path.join(data_root, 'Eval\list_eval_partition.txt')
 
         # input: x-y coordinate
         self.num_inputs = 2
@@ -169,6 +169,8 @@ class CelebADataset:
 
             # plot context
             plt.subplot(6, 6, (i % 6) * 6 + 1 + int(i > 5) * 3)
+            # Ensure img is on CPU and converted to NumPy
+            img = img.cpu().numpy() if isinstance(img, torch.Tensor) else img
             # img = (img + 1) / 2
             plt.imshow(img)
             plt.xticks([])
@@ -180,7 +182,15 @@ class CelebADataset:
             # de-normalise coordinates
             pixel_inputs *= 32
             pixel_inputs = pixel_inputs.long()
+
+            # Ensure img is on CPU and converted to NumPy
+            img_copy = img_copy.cpu().numpy() if isinstance(img_copy, torch.Tensor) else img_copy
+
+            # Ensure pixel_inputs is on CPU and converted to NumPy (important for indexing)
+            pixel_inputs = pixel_inputs.cpu().numpy() if isinstance(pixel_inputs, torch.Tensor) else pixel_inputs
+            
             img_copy[pixel_inputs[:, 0], pixel_inputs[:, 1]] = img[pixel_inputs[:, 0], pixel_inputs[:, 1]]
+
             plt.imshow(img_copy)
             plt.xticks([])
             plt.yticks([])
@@ -197,6 +207,10 @@ class CelebADataset:
             # img_pred = (img_pred + 1) / 2
             img_pred[img_pred < 0] = 0
             img_pred[img_pred > 1] = 1
+
+            # Ensure img is on CPU and converted to NumPy
+            img_pred = img_pred.cpu().numpy() if isinstance(img_pred, torch.Tensor) else img_pred
+
             plt.imshow(img_pred)
             plt.xticks([])
             plt.yticks([])

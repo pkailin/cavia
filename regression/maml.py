@@ -202,9 +202,11 @@ def run(args, log_interval=5000, rerun=False):
             logger.print_info(i_iter, start_time)
             start_time = time.time()
 
+    model_outer = model_outer.cpu()  # Move model to CPU before copying
+
     # ------------- TESTING PHASE WITH 10 ADAPTATION STEPS ------------- #
     print("\nStarting final evaluation with 10 adaptation steps...\n")
-    losses_mean, losses_conf = eval(args, copy.deepcopy(model_outer), task_family_test, num_updates=10, test=True)
+    losses_mean, losses_conf = eval(args, copy.copy(model_outer), task_family_test, num_updates=10, test=True)
 
     return logger
 
