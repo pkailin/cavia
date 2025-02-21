@@ -36,7 +36,8 @@ def run(args, log_interval=5000, rerun=False):
 
     # --- initialise everything ---
 
-    # get the task family
+    # get the task family 
+    # KL: helps to generate task samples 
     if args.task == 'sine':
         task_family_train = tasks_sine.RegressionTasksSinusoidal()
         task_family_valid = tasks_sine.RegressionTasksSinusoidal()
@@ -65,6 +66,7 @@ def run(args, log_interval=5000, rerun=False):
     logger = Logger()
     logger.best_valid_model = copy.deepcopy(model_outer)
 
+    # KL: total number of epochs 
     for i_iter in range(args.n_iter):
 
         # copy weights of network
@@ -78,6 +80,7 @@ def run(args, log_interval=5000, rerun=False):
         # sample tasks
         target_functions = task_family_train.sample_tasks(args.tasks_per_metaupdate)
 
+         # KL: for each task 
         for t in range(args.tasks_per_metaupdate):
 
             # reset network weights
@@ -88,6 +91,7 @@ def run(args, log_interval=5000, rerun=False):
             # get data for current task
             train_inputs = task_family_train.sample_inputs(args.k_meta_train, args.use_ordered_pixels).to(args.device)
 
+            # KL: number of inner loop updates 
             for _ in range(args.num_inner_updates):
 
                 # make prediction using the current model
@@ -142,7 +146,7 @@ def run(args, log_interval=5000, rerun=False):
                 meta_gradient[i] += task_grads[i].detach()
 
         # ------------ meta update ------------
-
+        # KL: outer loop update 
         meta_optimiser.zero_grad()
         # print(meta_gradient)
 
@@ -198,14 +202,21 @@ def run(args, log_interval=5000, rerun=False):
             logger.print_info(i_iter, start_time)
             start_time = time.time()
 
+    # ------------- TESTING PHASE WITH 10 ADAPTATION STEPS ------------- #
+    print("\nStarting final evaluation with 10 adaptation steps...\n")
+    losses_mean, losses_conf = eval(args, copy.deepcopy(model_outer), task_family_test, num_updates=10, test=True)
+
     return logger
 
-
-def eval(args, model, task_family, num_updates, n_tasks=100, return_gradnorm=False):
+# KL: gradient updates are done to the ENTIRE model 
+# KL: the only diff between og maml is the additional biases added to the input layer.
+# KL: evaluation tasks change to 600 to match MAML paper 
+def eval(args, model, task_family, num_updates, n_tasks=600, return_gradnorm=False, test=False):
     # copy weights of network
     copy_weights = [w.clone() for w in model.weights]
     copy_biases = [b.clone() for b in model.biases]
-    copy_context = model.task_context.clone()
+
+    copy_context = model.task_context.clone() 
 
     # get the task family (with infinite number of tasks)
     input_range = task_family.get_input_range().to(args.device)
@@ -213,6 +224,8 @@ def eval(args, model, task_family, num_updates, n_tasks=100, return_gradnorm=Fal
     # logging
     losses = []
     gradnorms = []
+
+    losses_per_step = [[] for _ in range(num_updates + 1)]  # Logs loss at each step (including step 0)
 
     # --- inner loop ---
 
@@ -230,6 +243,11 @@ def eval(args, model, task_family, num_updates, n_tasks=100, return_gradnorm=Fal
         curr_inputs = task_family.sample_inputs(args.k_shot_eval, args.use_ordered_pixels).to(args.device)
         curr_targets = target_function(curr_inputs)
 
+        # Compute initial loss (before adaptation, step 0)
+        curr_outputs = model(curr_inputs)
+        task_loss = F.mse_loss(curr_outputs, curr_targets)
+        losses_per_step[0].append(task_loss.item())  # Log initial loss
+
         # ------------ update on current task ------------
 
         for _ in range(1, num_updates + 1):
@@ -238,6 +256,8 @@ def eval(args, model, task_family, num_updates, n_tasks=100, return_gradnorm=Fal
 
             # compute loss for current task
             task_loss = F.mse_loss(curr_outputs, curr_targets)
+
+            losses_per_step[_].append(task_loss.item())  # Log loss at this adaptation step
 
             # update task parameters
             params = [w for w in model.weights] + [b for b in model.biases] + [model.task_context]
@@ -261,10 +281,33 @@ def eval(args, model, task_family, num_updates, n_tasks=100, return_gradnorm=Fal
     model.biases = [b.clone() for b in copy_biases]
     model.task_context = copy_context.clone()
 
-    losses_mean = np.mean(losses)
-    losses_conf = st.t.interval(0.95, len(losses) - 1, loc=losses_mean, scale=st.sem(losses))
+    if test == False: # training mode 
+        losses_mean = np.mean(losses)
+        losses_conf = st.t.interval(0.95, len(losses) - 1, loc=losses_mean, scale=st.sem(losses))
 
-    if not return_gradnorm:
-        return losses_mean, np.mean(np.abs(losses_conf - losses_mean))
-    else:
-        return losses_mean, np.mean(np.abs(losses_conf - losses_mean)), np.mean(gradnorms)
+        if not return_gradnorm:
+            return losses_mean, np.mean(np.abs(losses_conf - losses_mean))
+        else:
+            return losses_mean, np.mean(np.abs(losses_conf - losses_mean)), np.mean(gradnorms)
+    
+    else: # testing mode 
+        # Compute mean and confidence interval for each adaptation step
+        losses_mean = [np.mean(step_losses) for step_losses in losses_per_step]
+        losses_conf = [
+            st.t.interval(0.95, len(step_losses) - 1, loc=np.mean(step_losses), scale=st.sem(step_losses))
+            if len(step_losses) > 1 else (np.nan, np.nan)  # Handle cases with too few samples
+            for step_losses in losses_per_step
+        ]
+
+        print("\nLoss at each adaptation step:")
+        for step in range(num_updates + 1):
+            print(f"Step {step}: {losses_mean[step]:.4f} ± {np.abs(losses_conf[step][1] - losses_mean[step]):.4f}")
+
+        if not return_gradnorm:
+            return losses_mean, [np.abs(losses_conf[step][1] - losses_mean[step]) for step in range(num_updates + 1)]
+        else:
+            return (
+                losses_mean,
+                [np.abs(losses_conf[step][1] - losses_mean[step]) for step in range(num_updates + 1)],
+                np.mean(gradnorms),
+            )
