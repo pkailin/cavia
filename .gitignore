@@ -16,6 +16,6 @@ data/CelebA/
 saves/
 logs/
 plots/
-results/
+# results/
 *result_plots
-*result_files
+#*result_files
