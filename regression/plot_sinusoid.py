@@ -14,7 +14,7 @@ def load_model(path):
     logger = utils.load_obj(path)
     return logger.best_valid_model
 
-def adapt_and_plot(model, task_family, k_shot=10, num_steps=10, device="cpu"):
+def adapt_and_plot(model, task_family, num_steps, k_shot=10, device="cpu"):
     """Runs adaptation steps on a sinusoidal task and plots predictions for MAML and CAVIA."""
     
     model.to(device)
@@ -87,7 +87,7 @@ def plot_prediction(model, task, num_steps, train_inputs, train_targets):
     base_dir = r"C:\Users\65889\Desktop\MPhil_MLMI\MLMI4\cavia\results"
     plt.savefig(os.path.join(base_dir, title + ".png"), bbox_inches="tight")
 
-def print_losses(model, task_family, n_tasks=600, k_shot=10, num_steps=10, device="cpu"):
+def print_losses(model, task_family, num_steps, n_tasks=1000, k_shot=10,  device="cpu"):
     # Copy model parameters to reset after adaptation
     if isinstance(model, MamlModel):
         copy_weights = [w.clone() for w in model.weights]
@@ -171,17 +171,21 @@ def print_losses(model, task_family, n_tasks=600, k_shot=10, num_steps=10, devic
         print(f"Step {step}: Loss = {mean_loss:.4f} ± {np.abs(conf_interval[1] - mean_loss):.4f}")
 
 
+num_steps = 20 # number of gradient update steps 
+
 # For MAML Default
-model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\2924ba9c980634d7f539f80db15f572a"  # Replace with actual path
+#model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\2924ba9c980634d7f539f80db15f572a"  # model for num_innerloop_updates = 10
+model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\0e5a07be597aa48aa3f12be468c7140f" # model for num_innerloop_updates = 1
 loaded_model = load_model(model_path)
 sine_task_family = RegressionTasksSinusoidal()
-adapt_and_plot(loaded_model, sine_task_family)
-print_losses(loaded_model, sine_task_family)
+adapt_and_plot(loaded_model, sine_task_family, num_steps=num_steps)
+print_losses(loaded_model, sine_task_family, num_steps=num_steps)
 
 
 # For CAVIA 
-model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\4b94f13a800977f8263adbe050e8d84f"  # Replace with actual path
+#model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\4b94f13a800977f8263adbe050e8d84f"  # model for num_innerloop_updates = 10
+model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\e155e78e59e2f4200d02d587cd5d4727" # model for num_innerloop_updates = 1
 loaded_model = load_model(model_path)
 sine_task_family = RegressionTasksSinusoidal()
-adapt_and_plot(loaded_model, sine_task_family)
-print_losses(loaded_model, sine_task_family)
+adapt_and_plot(loaded_model, sine_task_family, num_steps=num_steps)
+print_losses(loaded_model, sine_task_family, num_steps=num_steps)
