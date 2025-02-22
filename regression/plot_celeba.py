@@ -7,6 +7,8 @@ import utils
 from maml_model import MamlModel
 from cavia_model import CaviaModel
 from tasks_celebA import CelebADataset
+import torch.nn.functional as F
+import scipy.stats as st
 
 def load_model(path):
     """Loads the saved model from a pickle file."""
@@ -109,13 +111,89 @@ def adapt_and_visualize(model, task_family, k_shot=10, num_steps=10, output_path
         plt.savefig(output_path)
     plt.show()
     
-    # Reset model to original state
+def print_losses(model, task_family, n_tasks=600, k_shot=10, num_steps=10, device="cpu"):
+    # Copy model parameters to reset after adaptation
     if isinstance(model, MamlModel):
-        model.weights = [w.clone() for w in copy_weights]
-        model.biases = [b.clone() for b in copy_biases]
-        model.task_context = copy_context.clone()
+        copy_weights = [w.clone() for w in model.weights]
+        copy_biases = [b.clone() for b in model.biases]
+        copy_context = model.task_context.clone()
     elif isinstance(model, CaviaModel):
-        model.context_params = copy_context.clone()
+        copy_context = model.context_params.clone()
+
+    losses_per_step = [[] for _ in range(num_steps + 1)]  # Logs loss at each step (including step 0)
+
+    for t in range(n_tasks):
+
+        if isinstance(model, MamlModel):
+            # reset network weights
+            model.weights = [w.clone() for w in copy_weights]
+            model.biases = [b.clone() for b in copy_biases]
+            model.task_context = copy_context.clone()
+        elif isinstance(model, CaviaModel):
+            # reset context parameters
+            model.context_params = copy_context.clone()
+
+        # sample a task
+        target_function = task_family.sample_task()
+
+        # get data for current task
+        curr_inputs = task_family.sample_inputs(k_shot, False)
+        curr_targets = target_function(curr_inputs)
+
+        # Compute initial loss (before adaptation, step 0)
+        with torch.no_grad():
+            curr_outputs = model(curr_inputs)
+            task_loss = F.mse_loss(curr_outputs, curr_targets)
+            losses_per_step[0].append(task_loss.item())  # Log initial loss
+
+        # ------------ update on current task ------------
+
+        for _ in range(1, num_steps + 1):
+
+            curr_outputs = model(curr_inputs)
+            # compute loss for current task
+            task_loss = F.mse_loss(curr_outputs, curr_targets)
+
+            if isinstance(model, MamlModel):
+                # update task parameters
+                params = [w for w in model.weights] + [b for b in model.biases] + [model.task_context]
+                grads = torch.autograd.grad(task_loss, params)
+
+                for i in range(len(model.weights)):
+                    model.weights[i] = model.weights[i] - 0.001 * grads[i].detach()
+                for j in range(len(model.biases)):
+                    model.biases[j] = model.biases[j] - 0.001 * grads[i + j + 1].detach()
+                model.task_context = model.task_context - 0.001 * grads[i + j + 2].detach()
+
+            elif isinstance(model, CaviaModel): 
+                # compute gradient wrt context params
+                task_gradients = \
+                    torch.autograd.grad(task_loss, model.context_params, create_graph=False)[0]
+                
+                model.context_params = model.context_params - 1.0 * task_gradients
+
+            # compute loss for current task
+            curr_outputs = model(curr_inputs)
+            task_loss = F.mse_loss(curr_outputs, curr_targets)
+            losses_per_step[_].append(task_loss.item())  # Log loss after this adaptation step
+    
+    losses_mean = [np.mean(step_losses) for step_losses in losses_per_step]
+    losses_conf = [
+        st.t.interval(0.95, len(step_losses) - 1, loc=np.mean(step_losses), scale=st.sem(step_losses))
+        if len(step_losses) > 1 else (np.nan, np.nan)  # Handle cases with too few samples
+        for step_losses in losses_per_step
+    ]
+
+    # Print loss progression across adaptation steps
+    if isinstance(model, CaviaModel): 
+        print("\n=== CAVIA Final Evaluation: Loss per Adaptation Step ===\n")
+    elif isinstance(model, MamlModel): 
+        print("\n=== MAML Final Evaluation: Loss per Adaptation Step ===\n")
+    for step in range(num_steps + 1):
+        mean_loss = np.round(losses_mean[step], 4)
+        conf_interval = np.round(losses_conf[step], 4)
+        print(f"Step {step}: Loss = {mean_loss:.4f} ± {np.abs(conf_interval[1] - mean_loss):.4f}")
+
 
 def visualize_adaptation_steps(model, task_family, k_shot=10, steps_to_show=[0, 1, 3, 5, 10], output_path=None, device="cpu"):
     """Visualizes the progression of adaptation across multiple steps."""
@@ -229,43 +307,25 @@ def visualize_adaptation_steps(model, task_family, k_shot=10, steps_to_show=[0, 
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-'''
-# Load CAVIA model
-maml = False 
-cavia_path = r".\celeba_result_files\c223fdf4b0e74e612b0bae57d5a3c1b3"  # Replace with your actual path
-model = load_model(cavia_path)
-'''
-
-# Load MAML model if available
-maml = True
-maml_path = r".\celeba_result_files\664f01c6950a4e16340204b094d10b03"  # Replace with your actual path
-model = load_model(maml_path)
+base_dir = './results'
+k_shot = 10
 
 # Initialize CelebA dataset (test split)
 celeba_tasks = CelebADataset('test', device=device)
 
-# Basic visualization
-if maml==True: 
-    adapt_and_visualize(model, celeba_tasks, k_shot=10, num_steps=10, output_path="celeba_maml_adaptation.png", device=device)
-else: 
-    adapt_and_visualize(model, celeba_tasks, k_shot=10, num_steps=10, output_path="celeba_cavia_adaptation.png", device=device)
-    
-if maml==True:
-    losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10],
-                                        output_path="celeba_maml_progression.png",
-                                        device=device)
-else: 
-    losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10],
-                                        output_path="celeba_cavia_progression.png",
-                                        device=device)
-'''
-# Plot loss progression
-plt.figure(figsize=(8, 4))
-plt.plot(losses, marker='o')
-plt.title("CAVIA Adaptation Loss")
-plt.xlabel("Adaptation Step")
-plt.ylabel("MSE Loss")
-plt.grid(alpha=0.3)
-plt.savefig("celeba_cavia_loss_curve.png")
-plt.show()
-'''  
+# Load CAVIA model 
+cavia_path = r".\celeba_result_files\c223fdf4b0e74e612b0bae57d5a3c1b3"  # Replace with your actual path
+model = load_model(cavia_path)
+adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=10, output_path=os.path.join(base_dir, "celeba_cavia_adaptation_" + str(k_shot) + 'shot.png'), device=device)
+print_losses(model, celeba_tasks, k_shot=k_shot)
+#losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10], output_path="celeba_cavia_progression.png", device=device)
+
+
+# Load MAML model 
+maml_path = r".\celeba_result_files\664f01c6950a4e16340204b094d10b03"  # Replace with your actual path
+model = load_model(maml_path) 
+adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=k_shot, output_path=os.path.join(base_dir, "celeba_maml_adaptation_" + str(k_shot) + 'shot.png'), device=device)
+print_losses(model, celeba_tasks, k_shot=10)
+#losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10], output_path="celeba_maml_progression.png", device=device)  
+
+
