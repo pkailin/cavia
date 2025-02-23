@@ -51,15 +51,15 @@ def adapt_and_visualize(model, task_family, k_shot=10, num_steps=10, output_path
             grads = torch.autograd.grad(loss, params)
 
             for i in range(len(model.weights)):
-                model.weights[i] = model.weights[i] - 0.01 * grads[i].detach()
+                model.weights[i] = model.weights[i] - 0.001 * grads[i].detach()
             for j in range(len(model.biases)):
-                model.biases[j] = model.biases[j] - 0.01 * grads[i + j + 1].detach()
-            model.task_context = model.task_context - 0.01 * grads[i + j + 2].detach()
+                model.biases[j] = model.biases[j] - 0.001 * grads[i + j + 1].detach()
+            model.task_context = model.task_context - 0.001 * grads[i + j + 2].detach()
 
         elif isinstance(model, CaviaModel):
             # Compute gradient and update only context parameters
             grads = torch.autograd.grad(loss, model.context_params)
-            model.context_params = model.context_params - 0.01 * grads[0].detach()
+            model.context_params = model.context_params - 1.0 * grads[0].detach()
 
     # Get all pixel coordinates (input range) for full image reconstruction
     input_range = task_family.get_input_range().to(device)
@@ -111,7 +111,7 @@ def adapt_and_visualize(model, task_family, k_shot=10, num_steps=10, output_path
         plt.savefig(output_path)
     plt.show()
     
-def print_losses(model, task_family, n_tasks=600, k_shot=10, num_steps=10, device="cpu"):
+def print_losses(model, task_family, n_tasks=1000, k_shot=10, num_steps=10, device="cpu"):
     # Copy model parameters to reset after adaptation
     if isinstance(model, MamlModel):
         copy_weights = [w.clone() for w in model.weights]
@@ -287,7 +287,7 @@ def visualize_adaptation_steps(model, task_family, k_shot=10, steps_to_show=[0, 
             elif isinstance(model, CaviaModel):
                 # Compute gradient and update only context parameters
                 grads = torch.autograd.grad(loss, model.context_params)
-                model.context_params = model.context_params - 0.001 * grads[0].detach()
+                model.context_params = model.context_params - 1.0 * grads[0].detach()
     
     plt.tight_layout()
     
@@ -308,24 +308,26 @@ def visualize_adaptation_steps(model, task_family, k_shot=10, steps_to_show=[0, 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_dir = './results'
-k_shot = 10
+k_shot = 1000 #10, 100, 1000
 
 # Initialize CelebA dataset (test split)
 celeba_tasks = CelebADataset('test', device=device)
 
 # Load CAVIA model 
-cavia_path = r".\celeba_result_files\c223fdf4b0e74e612b0bae57d5a3c1b3"  # Replace with your actual path
-model = load_model(cavia_path)
-adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=10, output_path=os.path.join(base_dir, "celeba_cavia_adaptation_" + str(k_shot) + 'shot.png'), device=device)
-print_losses(model, celeba_tasks, k_shot=k_shot)
+#cavia_path = r".\celeba_result_files\c223fdf4b0e74e612b0bae57d5a3c1b3"  # num_innerloop_updates = 1
+#cavia_path = r".\celeba_result_files\0866fb4847c2a60ca840f6eb53cd71ec" # num_innerloop_updates = 10
+#model = load_model(cavia_path)
+#adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=20, output_path=os.path.join(base_dir, "celeba_cavia_adaptation_" + str(k_shot) + 'shot.png'), device=device)
+#print_losses(model, celeba_tasks, k_shot=k_shot, num_steps=20)
 #losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10], output_path="celeba_cavia_progression.png", device=device)
 
 
 # Load MAML model 
-maml_path = r".\celeba_result_files\664f01c6950a4e16340204b094d10b03"  # Replace with your actual path
+maml_path = r".\celeba_result_files\664f01c6950a4e16340204b094d10b03"  # num_innerloop_updates = 1
+#maml_path = r".\celeba_result_files\abe2b29ce4104810ac714fc534733275" # num_innerloop_updates = 10
 model = load_model(maml_path) 
 adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=k_shot, output_path=os.path.join(base_dir, "celeba_maml_adaptation_" + str(k_shot) + 'shot.png'), device=device)
-print_losses(model, celeba_tasks, k_shot=10)
+print_losses(model, celeba_tasks, k_shot=10, num_steps=20)
 #losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10], output_path="celeba_maml_progression.png", device=device)  
 
 
