@@ -59,6 +59,9 @@ def adapt_and_plot(model, task_family, num_steps, k_shot=10, device="cpu"):
         pre_adapt_outputs = model(train_inputs)
 
     # Adaptation loop
+    predictions = {}
+
+    # Adaptation loop
     for step in range(num_steps):
         train_outputs = model(train_inputs)
         loss = torch.nn.functional.mse_loss(train_outputs, train_targets)
@@ -81,31 +84,42 @@ def adapt_and_plot(model, task_family, num_steps, k_shot=10, device="cpu"):
             grads = torch.autograd.grad(loss, model.context_params)
             model.context_params = model.context_params - 1.0 * grads[0].detach() 
 
-        plot_prediction(model, task, step+1, train_inputs, train_targets)
-   
+        # Store predictions only for step 10 and 20
+        if step + 1 in [1, 20]:
+            test_inputs = torch.linspace(-5, 5, 100).unsqueeze(1)
+            predictions[step + 1] = model(test_inputs).cpu().detach().numpy()
 
-def plot_prediction(model, task, num_steps, train_inputs, train_targets): 
-     # Sample test points to visualize the function
+    # Plot only step 1 and step 20 together
+    plot_prediction(model, task, predictions, train_inputs, train_targets)
+
+
+def plot_prediction(model, task, predictions, train_inputs, train_targets): 
+    # Sample test points to visualize the function
     test_inputs = torch.linspace(-5, 5, 100).unsqueeze(1)
     true_outputs = task(test_inputs).cpu().detach().numpy()
 
-    with torch.no_grad():
-        post_adapt_outputs = model(test_inputs).cpu().detach().numpy()
-
-    # Plot predictions
     plt.figure(figsize=(8, 5))
+
+    # Plot training data and ground truth
     plt.scatter(train_inputs.cpu().numpy(), train_targets.cpu().numpy(), color="red", label="K=10 Training Points")
-    plt.plot(test_inputs.cpu().numpy(), true_outputs, label="True Sinusoid", linestyle="dashed", color="blue")
-    plt.plot(test_inputs.cpu().numpy(), post_adapt_outputs, label="Adapted Model Prediction", color="green")
+    plt.plot(test_inputs.cpu().numpy(), true_outputs, label="True Sinusoid", color="green")
+
+    # Plot step 10 and step 20 predictions
+    if 1 in predictions:
+        plt.plot(test_inputs.cpu().numpy(), predictions[1], label="After 1 Step", color="blue",  linestyle="dashed")
+    if 20 in predictions:
+        plt.plot(test_inputs.cpu().numpy(), predictions[20], label="After 20 Steps", color="purple",  linestyle="dashed")
+
     plt.xlabel("x")
     plt.ylabel("f(x)")
-    title = f"CAVIA Adaptation" if isinstance(model, CaviaModel) else f"MAML Adaptation"
-    title = f"{title} with {num_steps} Steps"
-    plt.title(title)
+    title = "CAVIA Adaptation" if isinstance(model, CaviaModel) else "MAML Adaptation"
+    plt.title(f"{title}")
     plt.legend(loc="lower right", bbox_to_anchor=(1.0, 0.0))
 
-    base_dir = r"C:\Users\65889\Desktop\MPhil_MLMI\MLMI4\cavia\results"
-    plt.savefig(os.path.join(base_dir, title + ".png"), bbox_inches="tight")
+    base_dir = r"C:\Users\65889\Desktop\MPhil_MLMI\MLMI4\Repositories\cavia\regression\results"
+    plt.savefig(os.path.join(base_dir, f"{title}_step10_step20.png"), bbox_inches="tight")
+    plt.show()
+   
 
 def print_losses(model, task_family, num_steps, n_tasks=1000, k_shot=10,  device="cpu"):
     # Copy model parameters to reset after adaptation
@@ -147,7 +161,7 @@ def print_losses(model, task_family, num_steps, n_tasks=1000, k_shot=10,  device
         for _ in range(1, num_steps + 1):
 
             curr_outputs = model(curr_inputs)
-            # compute loss for current task
+            # compute loss for current task (MSE is computed using K points in each task)
             task_loss = F.mse_loss(curr_outputs, curr_targets)
 
             if isinstance(model, MamlModel):
@@ -194,8 +208,8 @@ def print_losses(model, task_family, num_steps, n_tasks=1000, k_shot=10,  device
 num_steps = 20 # number of gradient update steps 
 
 # For MAML Default
-#model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\2924ba9c980634d7f539f80db15f572a"  # model for num_innerloop_updates = 10
-model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\0e5a07be597aa48aa3f12be468c7140f" # model for num_innerloop_updates = 1
+#model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\Repositories\cavia\regression\sine_result_files\2924ba9c980634d7f539f80db15f572a"  # model for num_innerloop_updates = 10
+model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\Repositories\cavia\regression\sine_result_files\0e5a07be597aa48aa3f12be468c7140f" # model for num_innerloop_updates = 1
 loaded_model = load_model(model_path)
 sine_task_family = RegressionTasksSinusoidal()
 adapt_and_plot(loaded_model, sine_task_family, num_steps=num_steps)
@@ -203,8 +217,8 @@ print_losses(loaded_model, sine_task_family, num_steps=num_steps)
 
 
 # For CAVIA 
-#model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\4b94f13a800977f8263adbe050e8d84f"  # model for num_innerloop_updates = 10
-model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\cavia\regression\sine_result_files\e155e78e59e2f4200d02d587cd5d4727" # model for num_innerloop_updates = 1
+#model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\Repositories\cavia\regression\sine_result_files\4b94f13a800977f8263adbe050e8d84f"  # model for num_innerloop_updates = 10
+model_path = r"C:\Users\65889\Dropbox\PC\Desktop\MPhil_MLMI\MLMI4\Repositories\cavia\regression\sine_result_files\e155e78e59e2f4200d02d587cd5d4727" # model for num_innerloop_updates = 1
 loaded_model = load_model(model_path)
 sine_task_family = RegressionTasksSinusoidal()
 adapt_and_plot(loaded_model, sine_task_family, num_steps=num_steps)

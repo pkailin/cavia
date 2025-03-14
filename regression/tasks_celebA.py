@@ -63,10 +63,13 @@ class CelebADataset:
                                              transforms.ToTensor(),
                                              ])
 
-    def sample_task(self):
+    def sample_task(self, random=True):
         """ Sampling a task means sampling an image. """
         # choose image
-        img_file = np.random.choice(self.image_files)
+        if random == True: 
+            img_file = np.random.choice(self.image_files)
+        else: 
+            img_file = self.image_files[0]
         img = self.get_image(img_file)
         return self.get_target_function(img)
 
