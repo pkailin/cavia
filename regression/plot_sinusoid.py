@@ -1,6 +1,26 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+
+import seaborn as sns
+
+sns.set_style('darkgrid')
+
+plt.rcParams.update({
+    "text.usetex": True,  # Use LaTeX for font rendering
+    "font.family": "serif",  # Use serif font
+    "font.serif": ["Computer Modern"],  # Use LaTeX default serif font
+    "axes.labelsize": 14,  # Font size for x and y labels
+    "axes.titlesize": 16,  # Font size for plot titles
+    "xtick.labelsize": 12,  # Font size for x-axis ticks
+    "ytick.labelsize": 12,  # Font size for y-axis ticks
+    "legend.fontsize": 12,  # Font size for legends
+    # "figure.facecolor": "#EAEAF2",  # Light grey background for figure
+    # "axes.facecolor": "#EAEAF2",  # Light grey background for axes
+    # "grid.color": "#D3D3D3",  # Light grey grid color
+    "grid.linestyle": "--"  # Dashed grid lines
+})
+
 import utils
 from maml_model import MamlModel
 from cavia_model import CaviaModel

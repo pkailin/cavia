@@ -308,26 +308,31 @@ def visualize_adaptation_steps(model, task_family, k_shot=10, steps_to_show=[0, 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_dir = './results'
-k_shot = 1000 #10, 100, 1000
+k_shot = 10 #10, 100, 1000
 
 # Initialize CelebA dataset (test split)
 celeba_tasks = CelebADataset('test', device=device)
 
 # Load CAVIA model 
-#cavia_path = r".\celeba_result_files\c223fdf4b0e74e612b0bae57d5a3c1b3"  # num_innerloop_updates = 1
-#cavia_path = r".\celeba_result_files\0866fb4847c2a60ca840f6eb53cd71ec" # num_innerloop_updates = 10
-#model = load_model(cavia_path)
-#adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=20, output_path=os.path.join(base_dir, "celeba_cavia_adaptation_" + str(k_shot) + 'shot.png'), device=device)
-#print_losses(model, celeba_tasks, k_shot=k_shot, num_steps=20)
+cavia_path =".\celeba_result_files\91626236e07bbb63f57fa92c1573c4b7" # num_innerloop_updates = 5, K = 10
+#cavia_path = r".\celeba_result_files\1f3c5c064484d6e0c357e400b4b94e72" # num_innerloop_updates = 5, K = 100 
+#cavia_path = r".\celeba_result_files\c5103962610bf2b8f0e274f5b603a8eb" # num_innerloop_updates = 5, K = 1000
+
+model = load_model(cavia_path)
+adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=20, output_path=os.path.join(base_dir, "celeba_cavia_adaptation_" + str(k_shot) + 'shot.png'), device=device)
+print_losses(model, celeba_tasks, k_shot=k_shot, num_steps=20)
 #losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10], output_path="celeba_cavia_progression.png", device=device)
 
 
 # Load MAML model 
-maml_path = r".\celeba_result_files\664f01c6950a4e16340204b094d10b03"  # num_innerloop_updates = 1
+#maml_path = r".\celeba_result_files\664f01c6950a4e16340204b094d10b03"  # num_innerloop_updates = 1
 #maml_path = r".\celeba_result_files\abe2b29ce4104810ac714fc534733275" # num_innerloop_updates = 10
-model = load_model(maml_path) 
-adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=k_shot, output_path=os.path.join(base_dir, "celeba_maml_adaptation_" + str(k_shot) + 'shot.png'), device=device)
-print_losses(model, celeba_tasks, k_shot=10, num_steps=20)
+#model = load_model(maml_path) 
+#adapt_and_visualize(model, celeba_tasks, k_shot=k_shot, num_steps=k_shot, output_path=os.path.join(base_dir, "celeba_maml_adaptation_" + str(k_shot) + 'shot.png'), device=device)
+#print_losses(model, celeba_tasks, k_shot=10, num_steps=20)
 #losses = visualize_adaptation_steps(model, celeba_tasks, k_shot=10, steps_to_show=[0, 1, 3, 5, 10], output_path="celeba_maml_progression.png", device=device)  
 
 
+#cavia_path = r".\celeba_result_files\c223fdf4b0e74e612b0bae57d5a3c1b3"  # num_innerloop_updates = 1
+#cavia_path = r".\celeba_result_files\0866fb4847c2a60ca840f6eb53cd71ec" # num_innerloop_updates = 10
+#model = load_model(cavia_path)

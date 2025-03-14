@@ -19,7 +19,7 @@ from maml_model import MamlModel
 
 def run(args, log_interval=5000, rerun=False):
     assert args.maml
-
+    
     # see if we already ran this experiment
     code_root = os.path.dirname(os.path.realpath(__file__))
     if not os.path.isdir('{}/{}_result_files/'.format(code_root, args.task)):
